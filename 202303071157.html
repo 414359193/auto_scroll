@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <!-- <script src="text.js"></script> -->
+    <style>
+      h1 {
+        text-align: center;
+        line-height: 50px;
+        margin-top: 60px;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        margin: 0;
+        height: 100vh;
+        width: 100vw;
+      }
+      .box {
+        position: fixed;
+        /* height: calc(100vh - 50px); */
+        top: 160px;
+        bottom: 0;
+        /* overflow: hidden; */
+        overflow-y: scroll;
+        max-width: 900px;
+        left: 0;
+        right: 0;
+        margin: 0 auto;
+      }
+      #scroll {
+        margin-bottom: 100px;
+      }
+      .box::-webkit-scrollbar {
+        width: 0;
+        display: none;
+      }
+
+      .container {
+        height: 100%;
+        position: relative;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1></h1>
+    <div class="container">
+      <div class="box">
+        <div id="scroll"></div>
+      </div>
+    </div>
+
+    <script>
+      let scrollTimer = null;
+      let element = null;
+      let isLock = false;
+      const container = document.querySelector(".container");
+
+      let containerTop = container.getBoundingClientRect().top;
+      let containerHeight = container.offsetHeight;
+
+      //   保存的位置
+      let requestId = null;
+      let curMD5 = "";
+      //  1.创建XMLHttpRequest对象
+      var baseUrl =
+        "https://test.sifei.info/gateway/v1/information-publishing/article"; // 测试
+      // var baseUrl = "https://api.jm.sifei.info/eping/article"; // 正式
+      function ajax(url, successCallback, failCallback) {
+        var xmlhttp;
+        if (window.XMLHttpRequest) {
+          xmlhttp = new XMLHttpRequest();
+        } else {
+          xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        //2.发送请求
+        xmlhttp.open("GET", url, true);
+        xmlhttp.send();
+
+        //3.服务端响应
+        xmlhttp.onreadystatechange = function () {
+          if (xmlhttp.readyState === 4 && xmlhttp.status === 200) {
+            var obj = JSON.parse(xmlhttp.responseText);
+            // console.log(obj);
+            successCallback && successCallback(obj);
+          } else if (xmlhttp.readyState === 4 && xmlhttp.status === 404) {
+            failCallback && failCallback(xmlhttp.statusText);
+          }
+        };
+      }
+
+      let h1 = document.querySelector("h1");
+      let content = document.getElementById("scroll");
+
+      //获取文章列表
+      const getList = async (pageNum, pageSize) => {
+        await ajax(
+          `${baseUrl}?page_num=${pageNum}&page_size=${pageSize}`,
+          (res) => {
+            console.log(res);
+            lastId = res.list.at(-1).id;
+            getTitle(lastId);
+          }
+        );
+      };
+
+      //获取文章
+      const getTitle = async function (id) {
+        await ajax(`${baseUrl}/${id}`, (res) => {
+          console.log(res);
+          curMD5 = res.md5;
+          h1.innerHTML = res.title; // h1.textContent
+          content.innerHTML = res.content;
+          start();
+          constructor();
+        });
+      };
+      //获取最新的文章
+      const getNewtitle = () => {
+        ajax(`${baseUrl}/last`, (res) => {
+          h1.innerHTML = res.title;
+          content.innerHTML = res.content;
+
+          if (curMD5 && curMD5 !== res.md5) {
+            isLock = true;
+            curMD5 = res.md5;
+            h1.innerHTML = res.title;
+            content.innerHTML = res.content;
+          } else {
+            curMD5 = res.md5;
+          }
+          constructor();
+          start();
+        });
+      };
+        // getList(2, 2);
+      getNewtitle();
+      setInterval(() => {
+        cancelAnimationFrame(requestId);
+        getNewtitle();
+      }, 30000);
+
+      //屏幕自动轮播
+      function constructor(el) {
+        element = el ? el : document.querySelector(".box");
+      }
+
+      function start() {
+        requestId = requestAnimationFrame(function anima() {
+          // console.log(rect)
+
+          // element.scrollTop -= 100
+          const rect = element.firstElementChild.getBoundingClientRect();
+          const last = element.lastElementChild.getBoundingClientRect();
+          element.scrollTo({
+            left: 0,
+            top: isLock ? 0 : element.scrollTop + 1,
+            behavior: "smooth",
+          });
+          if (isLock) {
+            isLock = false;
+          }
+          if (last.bottom - containerHeight < 50) {
+            element.append(element.firstElementChild.cloneNode(true));
+          }
+          if (rect.bottom - containerTop < -50) {
+            element.firstElementChild.remove();
+          }
+          //开启轮播
+          requestId = requestAnimationFrame((itme) => {
+            requestId = requestAnimationFrame(anima);
+          });
+
+          //   console.log('element: ', element);
+          // console.log('element.scrollTop: ', element.scrollTop);
+        });
+      }
+
+      function paused() {
+        clearInterval(scrollTimer);
+      }
+
+      function close() {}
+    </script>
+  </body>
+</html>
